@@ -7,5 +7,6 @@ export const ProjectNameSchema = z
 
 export const ScriptIdSchema = z
 	.string()
-	.regex(/^[a-zA-Z0-9_-]+$/, "Invalid script ID. It should only contain letters, numbers, underscores, or hyphens.")
-	.optional();
+	.trim()
+	.length(57, "Google Apps Script IDs are exactly 57 characters long. Make sure you're providing a Script ID!")
+	.regex(/^[a-zA-Z0-9_-]+$/, "Script IDs can only contain letters, numbers, hyphens (-), and underscores (_).");

@@ -1,6 +1,5 @@
+import type { Spawn } from "bun";
 import type { ZodType } from "zod";
-import { ScriptIdSchema } from "./types";
-
 /**
  * Validate input using a Zod Schema. Returns schema response of data.
  * @param schema - Zod schema to validate against
@@ -9,9 +8,9 @@ import { ScriptIdSchema } from "./types";
  * @param exitUponFail - Exit process on validation failure (default: true)
  * @returns Validated string if successful, undefined if validation fails with exitUponFail=false
  */
-export function validate(schema: ZodType<string>, input: string | undefined, errorMessage: string, exitUponFail: true): string;
-export function validate(schema: ZodType<string>, input: string | undefined, errorMessage: string, exitUponFail: false): string | void;
-export function validate(schema: ZodType<string>, input: string | undefined, errorMessage: string, exitUponFail: boolean = true): string | void {
+export function validate(schema: ZodType<string | undefined>, input: string | undefined, errorMessage: string, exitUponFail: true): string;
+export function validate(schema: ZodType<string | undefined>, input: string | undefined, errorMessage: string, exitUponFail: false): string | void;
+export function validate(schema: ZodType<string | undefined>, input: string | undefined, errorMessage: string, exitUponFail: boolean = true): string | void {
 	const res = schema.safeParse(input);
 	if (res.success) return res.data;
 
@@ -19,4 +18,18 @@ export function validate(schema: ZodType<string>, input: string | undefined, err
 	console.log(errorMessage);
 
 	if (exitUponFail) process.exit(1);
+}
+
+export async function spawnProcess(cmd: string[], cwd: string, stdin: Spawn.Writable = "inherit", stdout: Spawn.Readable = "inherit", stderr: Spawn.Readable = "inherit") {
+	const proc = Bun.spawn(cmd, {
+		cwd,
+		stdin,
+		stdout,
+		stderr,
+	});
+	const exitCode = await proc.exited;
+
+	if (exitCode !== 0) {
+		throw new Error(`${cmd.join(" ")} failed with exit code ${exitCode}`);
+	}
 }
