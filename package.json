@@ -10,7 +10,7 @@
 		"gas": "./index.ts"
 	},
 	"scripts": {
-		"test": "bun test --coverage"
+		"test": "bun test --coverage --isolate"
 	},
 	"peerDependencies": {
 		"typescript": "^5"
