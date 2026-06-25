@@ -1,0 +1,9 @@
+{
+	"compilerOptions": {
+		"target": "ES5",
+		"module": "Preserve",
+		"types": ["google-apps-script"],
+		"lib": ["ES2019"],
+		"strict": true
+	}
+}

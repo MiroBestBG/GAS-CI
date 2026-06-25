@@ -1,16 +1,16 @@
-import { test, describe, expect, spyOn } from "bun:test";
+import { describe, expect, spyOn, it } from "bun:test";
 import { spawnProcess, validate } from "@/utils/validatation";
 import { z } from "zod";
 
 const testSchema = z.string().min(3).max(20);
 
 describe("validate()", () => {
-	test("successful validation returns string", () => {
+	it("should successfully validate the input; returns a valid string", () => {
 		expect(validate(testSchema, "valid", "Error", true)).toBe("valid");
 		expect(validate(testSchema, "valid", "Error", false)).toBe("valid");
 	});
 
-	test("failed validation with exitUponFail=false returns undefined and logs", () => {
+	it("should fail validation with exitUponFail=false; returns undefined and logs", () => {
 		const consoleSpy = spyOn(console, "log");
 		const result = validate(testSchema, "ab", "Error msg", false);
 		expect(result).toBeUndefined();
@@ -18,7 +18,7 @@ describe("validate()", () => {
 		consoleSpy.mockRestore();
 	});
 
-	test("failed validation with exitUponFail=true calls process.exit", () => {
+	it("should fail validation with exitUponFail=true; calls process.exit", () => {
 		const exitSpy = spyOn(process, "exit").mockImplementation(() => {
 			throw new Error("exit");
 		});
@@ -33,11 +33,11 @@ describe("validate()", () => {
 });
 
 describe("spawnProcess()", () => {
-	test("should succeed for a successful command", async () => {
-		expect(await spawnProcess(["echo", "hello"], process.cwd(), "pipe", "pipe", "pipe")).resolves.toBeUndefined();
+	it("should succeed for a successful command", async () => {
+		expect(spawnProcess(["echo", "hello"], process.cwd(), "pipe", "pipe", "pipe")).resolves.toBeUndefined();
 	});
 
-	test("should throw for a failing command", async () => {
-		expect(await spawnProcess(["false"], process.cwd(), "pipe", "pipe", "pipe")).rejects.toThrow("failed with exit code 1");
+	it("should throw for a failing command", async () => {
+		expect(spawnProcess(["false"], process.cwd(), "pipe", "pipe", "pipe")).rejects.toThrow("failed with exit code 1");
 	});
 });
