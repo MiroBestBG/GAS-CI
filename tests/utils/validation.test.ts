@@ -1,5 +1,5 @@
 import { test, describe, expect, spyOn } from "bun:test";
-import { validate } from "../../src/utils/validatation";
+import { spawnProcess, validate } from "@/utils/validatation";
 import { z } from "zod";
 
 const testSchema = z.string().min(3).max(20);
@@ -29,5 +29,15 @@ describe("validate()", () => {
 
 		exitSpy.mockRestore();
 		consoleSpy.mockRestore();
+	});
+});
+
+describe("spawnProcess()", () => {
+	test("should succeed for a successful command", async () => {
+		await expect(spawnProcess(["echo", "hello"], process.cwd(), "pipe", "pipe", "pipe")).resolves.toBeUndefined();
+	});
+
+	test("should throw for a failing command", async () => {
+		await expect(spawnProcess(["false"], process.cwd(), "pipe", "pipe", "pipe")).rejects.toThrow("failed with exit code 1");
 	});
 });

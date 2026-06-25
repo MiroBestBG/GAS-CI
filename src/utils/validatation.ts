@@ -20,6 +20,14 @@ export function validate(schema: ZodType<string | undefined>, input: string | un
 	if (exitUponFail) process.exit(1);
 }
 
+/**
+ *
+ * @param cmd - Command to run (Array of commands eg ["bun", "run", "dev"])
+ * @param cwd - Directory to do it within
+ * @param stdin
+ * @param stdout
+ * @param stderr
+ */
 export async function spawnProcess(cmd: string[], cwd: string, stdin: Spawn.Writable = "inherit", stdout: Spawn.Readable = "inherit", stderr: Spawn.Readable = "inherit") {
 	const proc = Bun.spawn(cmd, {
 		cwd,

@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import cac from "cac";
-import { init } from "./src/commands/init";
+import { init } from "@/commands/init";
 
 console.clear();
 

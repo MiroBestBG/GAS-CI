@@ -9,6 +9,9 @@
 	"bin": {
 		"gas": "./index.ts"
 	},
+	"scripts": {
+		"test": "bun test --coverage"
+	},
 	"peerDependencies": {
 		"typescript": "^5"
 	},
