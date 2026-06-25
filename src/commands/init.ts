@@ -9,6 +9,7 @@ import { existsSync } from "node:fs";
 import { rename } from "node:fs/promises";
 import { copyFile } from "node:fs/promises";
 import { outputAndExit } from "@/utils/utils";
+
 export async function init(projectNameInput?: string, scriptIdInput?: string, options?: { force?: boolean }) {
 	const projectName = validate(ProjectNameSchema, projectNameInput, `You must provide a valid project name.\nUsage: gas init <projectName> [scriptId]`, true);
 	const scriptId = validate(z.optional(ScriptIdSchema), scriptIdInput, `You must provide a valid Google App Script project Script ID. Alternatively, leave the Script ID blank and choose your project from a dropdown.\nUsage: gas init <projectName> [scriptId]`, true);

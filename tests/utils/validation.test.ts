@@ -33,11 +33,20 @@ describe("validate()", () => {
 });
 
 describe("spawnProcess()", () => {
-	it("should succeed for a successful command", async () => {
-		expect(spawnProcess(["echo", "hello"], process.cwd(), "pipe", "pipe", "pipe")).resolves.toBeUndefined();
+	it("should succeed for a command that exits with code 0", async () => {
+		const cmd = ["bun", "-e", "process.exit(0)"];
+
+		await expect(spawnProcess(cmd, process.cwd(), "ignore", "ignore", "ignore")).resolves.toBeUndefined();
 	});
 
-	it("should throw for a failing command", async () => {
-		expect(spawnProcess(["false"], process.cwd(), "pipe", "pipe", "pipe")).rejects.toThrow("failed with exit code 1");
+	it("should throw an error for a command that exits with a non-zero code", async () => {
+		const cmd = ["bun", "-e", "process.exit(1)"];
+
+		await expect(spawnProcess(cmd, process.cwd(), "ignore", "ignore", "ignore")).rejects.toThrow("bun -e process.exit(1) failed with exit code 1");
+	});
+
+	it("should succeed when streams are set to inherit", async () => {
+		const cmd = ["bun", "-e", "process.exit(0)"];
+		await expect(spawnProcess(cmd, process.cwd(), "inherit", "inherit", "inherit")).resolves.toBeUndefined();
 	});
 });

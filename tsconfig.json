@@ -26,17 +26,17 @@
 		"noUnusedLocals": false,
 		"noUnusedParameters": false,
 		"noPropertyAccessFromIndexSignature": false,
-		"baseUrl": ".",
+		"rootDir": ".",
 		"paths": {
-			"@/*": ["src/*"],
+			"@/*": ["./src/*"],
 
-			"@commands/*": ["src/commands/*"],
-			"@core/*": ["src/core/*"],
-			"@utils/*": ["src/utils/*"],
+			"@commands/*": ["./src/commands/*"],
+			"@core/*": ["./src/core/*"],
+			"@utils/*": ["./src/utils/*"],
 
-			"@template/*": ["project_template/*"],
+			"@template/*": ["./project_template/*"],
 
-			"@tests/*": ["tests/*"]
+			"@tests/*": ["./tests/*"]
 		}
 	}
 }
