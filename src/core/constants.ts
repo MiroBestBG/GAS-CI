@@ -1,3 +1,3 @@
 import { join } from "node:path";
 
-export const templateDir = join(import.meta.dirname, "../../project_template");
+export const TEMPLATE_DIR = join(import.meta.dirname, "../../project_template");

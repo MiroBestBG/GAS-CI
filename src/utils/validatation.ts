@@ -1,16 +1,18 @@
+import { z } from "zod";
 import type { Spawn } from "bun";
 import type { ZodType } from "zod";
 /**
  * Validate input using a Zod Schema. Returns schema response of data.
+ * Accepts any Zod schema and preserves its output type.
  * @param schema - Zod schema to validate against
  * @param input - Input string to validate
  * @param errorMessage - Error message to display on validation failure
  * @param exitUponFail - Exit process on validation failure (default: true)
- * @returns Validated string if successful, undefined if validation fails with exitUponFail=false
+ * @returns Validated schema output if successful, undefined if validation fails with exitUponFail=false
  */
-export function validate(schema: ZodType<string | undefined>, input: string | undefined, errorMessage: string, exitUponFail: true): string;
-export function validate(schema: ZodType<string | undefined>, input: string | undefined, errorMessage: string, exitUponFail: false): string | void;
-export function validate(schema: ZodType<string | undefined>, input: string | undefined, errorMessage: string, exitUponFail: boolean = true): string | void {
+export function validate<T extends ZodType>(schema: T, input: string | undefined, errorMessage: string, exitUponFail: true): z.infer<T>;
+export function validate<T extends ZodType>(schema: T, input: string | undefined, errorMessage: string, exitUponFail: false): z.infer<T> | void;
+export function validate<T extends ZodType>(schema: T, input: string | undefined, errorMessage: string, exitUponFail: boolean = true): z.infer<T> | void {
 	const res = schema.safeParse(input);
 	if (res.success) return res.data;
 

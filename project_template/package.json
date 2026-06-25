@@ -1,0 +1,12 @@
+{
+	"name": "project_template",
+	"type": "module",
+	"private": true,
+	"peerDependencies": {
+		"typescript": "^5"
+	},
+	"dependencies": {
+		"@types/google-apps-script": "^2.0.8",
+		"@types/javascript-obfuscator": "^0.17.0"
+	}
+}
