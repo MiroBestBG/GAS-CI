@@ -1,5 +1,7 @@
 # gas-ci
 
+This is the second version of GAS-CI. Previous iteration: https://github.com/MiroBestBG/GAS-CD
+
 To install dependencies:
 
 ```bash

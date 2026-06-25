@@ -34,10 +34,10 @@ describe("validate()", () => {
 
 describe("spawnProcess()", () => {
 	test("should succeed for a successful command", async () => {
-		await expect(spawnProcess(["echo", "hello"], process.cwd(), "pipe", "pipe", "pipe")).resolves.toBeUndefined();
+		expect(await spawnProcess(["echo", "hello"], process.cwd(), "pipe", "pipe", "pipe")).resolves.toBeUndefined();
 	});
 
 	test("should throw for a failing command", async () => {
-		await expect(spawnProcess(["false"], process.cwd(), "pipe", "pipe", "pipe")).rejects.toThrow("failed with exit code 1");
+		expect(await spawnProcess(["false"], process.cwd(), "pipe", "pipe", "pipe")).rejects.toThrow("failed with exit code 1");
 	});
 });
