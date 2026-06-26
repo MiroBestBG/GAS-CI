@@ -4,6 +4,7 @@ import { existsSync, watch } from "node:fs";
 import { join } from "node:path";
 import type { ConfigFile, ConfigSchema } from "@template/config";
 import { Glob } from "bun";
+import { parseSourceFile } from "@/utils/parser";
 interface PushFlags {
 	watch?: boolean;
 	noConfig?: boolean;
@@ -32,9 +33,14 @@ export async function performPush(cwd: string, flags: PushFlags) {
 	/* Obtain all ts files (To transpile) */
 	const tsFiles: Record<string, string> = {};
 	const srcFileGlob = new Glob("**/*.ts");
+	const entryPointContents: string[] = [];
 	for await (const file of srcFileGlob.scan({ cwd: srcDir })) {
 		const path = join(srcDir, file);
-		tsFiles[path] = await Bun.file(join(srcDir, file)).text();
+		const content = await Bun.file(join(srcDir, file)).text();
+		tsFiles[path] = content;
+
+		const fileMetadata = parseSourceFile(content);
+		console.info(fileMetadata);
 	}
 
 	/* Bundle project */

@@ -1,68 +1,41 @@
 import ts from "typescript";
 
 export interface FileMetadata {
-	functionNames: string[];
-	variableMatches: string[];
-	classNames: string[];
-	preservedFunctionNames: string[];
-	existingExports: string[];
+	unexportedDeclarations: string[];
+	preservedDeclarations: string[];
 }
 
 export function parseSourceFile(content: string): FileMetadata {
 	const sourceFile = ts.createSourceFile("temp.ts", content, ts.ScriptTarget.Latest, true);
-	const functionNames = new Set<string>();
-	const variableMatches = new Set<string>();
-	const classNames = new Set<string>();
-	const preservedFunctionNames = new Set<string>();
-	const existingExports = new Set<string>();
+	const unexportedDeclarations = new Set<string>();
+	const preservedDeclarations = new Set<string>();
 
 	for (const statement of sourceFile.statements) {
-		if (ts.isExportDeclaration(statement) && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
-			for (const element of statement.exportClause.elements) {
-				existingExports.add(element.name.text);
-			}
-			continue;
-		}
+		const names = getDeclarationNames(statement);
+		if (names.length === 0) continue;
 
-		const exported = isExported(statement);
+		const exported = ts.canHaveModifiers(statement) && ts.getModifiers(statement)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) === true;
 		const preserved = hasPreserveTag(statement, sourceFile);
 
-		if (ts.isFunctionDeclaration(statement) && statement.name) {
-			const name = statement.name.text;
-			functionNames.add(name);
-			if (preserved) preservedFunctionNames.add(name);
-			if (exported) existingExports.add(name);
-		} else if (ts.isClassDeclaration(statement) && statement.name) {
-			const name = statement.name.text;
-			classNames.add(name);
-			if (preserved) preservedFunctionNames.add(name);
-			if (exported) existingExports.add(name);
-		} else if (ts.isVariableStatement(statement)) {
-			for (const decl of statement.declarationList.declarations) {
-				if (!ts.isIdentifier(decl.name)) continue;
-				const name = decl.name.text;
-				variableMatches.add(name);
-
-				if (decl.initializer && (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer))) {
-					functionNames.add(name);
-				}
-				if (preserved) preservedFunctionNames.add(name);
-				if (exported) existingExports.add(name);
-			}
+		for (const name of names) {
+			if (!exported) unexportedDeclarations.add(name);
+			if (preserved) preservedDeclarations.add(name);
 		}
 	}
 
 	return {
-		functionNames: [...functionNames],
-		variableMatches: [...variableMatches],
-		classNames: [...classNames],
-		preservedFunctionNames: [...preservedFunctionNames],
-		existingExports: [...existingExports],
+		unexportedDeclarations: [...unexportedDeclarations],
+		preservedDeclarations: [...preservedDeclarations],
 	};
 }
 
-function isExported(node: ts.Node): boolean {
-	return (ts.getCombinedModifierFlags(node as ts.Declaration) & ts.ModifierFlags.Export) !== 0;
+function getDeclarationNames(statement: ts.Statement): string[] {
+	if (ts.isFunctionDeclaration(statement) && statement.name) return [statement.name.text];
+	if (ts.isClassDeclaration(statement) && statement.name) return [statement.name.text];
+	if (ts.isVariableStatement(statement)) {
+		return statement.declarationList.declarations.filter((d) => ts.isIdentifier(d.name)).map((d) => (d.name as ts.Identifier).text);
+	}
+	return [];
 }
 
 function hasPreserveTag(node: ts.Node, sourceFile: ts.SourceFile): boolean {
