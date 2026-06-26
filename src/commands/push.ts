@@ -6,6 +6,7 @@ import type { ConfigFile, ConfigSchema } from "@template/config";
 import { Glob } from "bun";
 import { parseSourceFile } from "@/utils/parser";
 import { obfuscate } from "javascript-obfuscator";
+import { spawnProcess } from "@/utils/validatation";
 interface PushFlags {
 	watch?: boolean;
 	noConfig?: boolean;
@@ -80,7 +81,25 @@ export async function performPush(cwd: string, flags: PushFlags) {
 	}
 
 	/* Remove the last line of (export { ... }) since it breaks GAS*/
-	sourceCode = sourceCode.replace(/export\s*{[^}]*};?\s*$/, "");
+	sourceCode = sourceCode.replace(/export\s*\{[^}]*\};?/g, "");
+
+	const distFileGlob = new Glob("**/*");
+	for await (const file of distFileGlob.scan({ cwd: distDir })) {
+		await Bun.file(join(distDir, file)).delete();
+	}
+
+	/* Write bundled source code to dist */
+	await Bun.write(join(distDir, "main.js"), sourceCode);
+
+	if (existsSync(join(cwd, "appsscript.json"))) {
+		const appScriptFile = Bun.file(join(cwd, "appsscript.json"));
+		await Bun.write(join(distDir, "appsscript.json"), await appScriptFile.text());
+	}
+
+	/* Push using clasp */
+
+	console.info(distDir);
+	await spawnProcess(["clasp", "push"], distDir);
 }
 
 export async function push(options: PushFlags = {}) {
@@ -92,9 +111,10 @@ export async function push(options: PushFlags = {}) {
 	await performPush(cwd, options);
 
 	/* Watch for changes in the 'src' directory */
-	if (options?.watch) await watchDirectoryForChanges(cwd, options);
-
-	process.exit(0); // Push complete
+	if (options?.watch) {
+		await watchDirectoryForChanges(cwd, options);
+	}
+	process.exit(0);
 }
 /**
  * @param rootDir - The root project directory. The 'src' subdirectory within it will be watched.
