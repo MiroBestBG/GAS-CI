@@ -12,5 +12,5 @@ cli.command("init [projectName] [scriptId]", "Initialize a new GAS project").opt
 cli.command("push", "Push local changes to Google Apps Script").option("-w, --watch", "Watch for changes and push automatically").action(push);
 
 cli.help();
-cli.version("0.0.1");
+cli.version("1.0.0");
 cli.parse();

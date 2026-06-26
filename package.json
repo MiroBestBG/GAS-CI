@@ -1,8 +1,34 @@
 {
-	"name": "gas",
+	"name": "gas-ci",
+	"description": "GAS CI is a CLI tool for building and deploying Google Apps Script (GAS) projects with modern JavaScript/TypeScript tooling. It acts as a wrapper around `clasp`, adding support for bundling, obfuscation, and automatic preservation of GAS entry-point functions.",
 	"module": "index.ts",
 	"type": "module",
-	"version": "0.0.1",
+	"version": "1.0.0",
+	"author": {
+		"name": "MiroBestBG",
+		"email": "miroalt001@gmail.com"
+	},
+	"repository": {
+		"url": "https://github.com/MiroBestBG/GAS-CI"
+	},
+	"license": "SEE LICENSE IN LICENSE",
+	"keywords": [
+		"google-apps-script",
+		"gas",
+		"clasp",
+		"typescript",
+		"bundle",
+		"obfuscator"
+	],
+	"files": [
+		"src",
+		"project_template",
+		"index.ts",
+		"tsconfig.json"
+	],
+	"engines": {
+		"bun": ">=1.0.0"
+	},
 	"devDependencies": {
 		"@types/bun": "latest"
 	},
