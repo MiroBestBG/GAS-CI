@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { ConfigFile, ConfigSchema } from "@template/config";
 import { Glob } from "bun";
 import { parseSourceFile } from "@/utils/parser";
+import { obfuscate } from "javascript-obfuscator";
 interface PushFlags {
 	watch?: boolean;
 	noConfig?: boolean;
@@ -44,7 +45,9 @@ export async function performPush(cwd: string, flags: PushFlags) {
 
 		tsFiles[path] = [content, exportStatement].join("\n");
 		entryPointContents.push(`export * from "./${file}";`);
-		preservedFunctions.push(preservedDeclarations);
+		for (const preservedDeclaration of preservedDeclarations) {
+			preservedFunctions.push(preservedDeclaration);
+		}
 	}
 
 	/* Use tsconfig for bundling (if present) */
@@ -59,13 +62,25 @@ export async function performPush(cwd: string, flags: PushFlags) {
 		},
 		target: "browser",
 		format: "esm",
-		minify: false,
 		...(tsconfigExists ? { tsconfig: tsConfigPath } : {}),
 	});
 
 	if (!res.success) outputAndExit(`Something went wrong when bundling the project.\n${res.logs.toString()}`);
+	var sourceCode = await res.outputs[0]?.text();
 
-	console.info(await res.outputs[0]?.text());
+	if (!sourceCode) outputAndExit(`The bundled source code returned undefined.`);
+
+	if (config?.obfuscate?.enabled) {
+		sourceCode = obfuscate(sourceCode, {
+			reservedNames: preservedFunctions,
+			...config.obfuscate.options,
+		})
+			.getObfuscatedCode()
+			.toString();
+	}
+
+	/* Remove the last line of (export { ... }) since it breaks GAS*/
+	sourceCode = sourceCode.replace(/export\s*{[^}]*};?\s*$/, "");
 }
 
 export async function push(options: PushFlags = {}) {
@@ -76,11 +91,10 @@ export async function push(options: PushFlags = {}) {
 
 	await performPush(cwd, options);
 
+	/* Watch for changes in the 'src' directory */
 	if (options?.watch) await watchDirectoryForChanges(cwd, options);
 
 	process.exit(0); // Push complete
-
-	/* Watch for changes in the 'src' directory */
 }
 /**
  * @param rootDir - The root project directory. The 'src' subdirectory within it will be watched.
