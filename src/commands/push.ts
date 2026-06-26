@@ -1,14 +1,17 @@
 import { outputAndExit } from "@/utils/utils";
 import { exists } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { watch } from "node:fs";
 import { join } from "node:path";
 /**
  * @todo - Functionality
  */
 export async function performPush(cwd: string) {
-	console.log(`Pushing`);
-	await Bun.sleep(1000);
-	console.log(`Pushed files`);
+	const srcDir = join(cwd, "src");
+	const distDir = join(cwd, "dist");
+
+	/* Create dist if it doesn't exist. Ensures srcDir exists to ensure its being ran within a project */
+	if ((await exists(srcDir)) && !(await exists(distDir))) await mkdir(distDir, { recursive: true });
 }
 
 export async function push(options: { watch?: boolean } = {}) {
