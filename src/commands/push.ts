@@ -3,6 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { existsSync, watch } from "node:fs";
 import { join } from "node:path";
 import type { ConfigFile, ConfigSchema } from "@template/config";
+import { Glob } from "bun";
 interface PushFlags {
 	watch?: boolean;
 	noConfig?: boolean;
@@ -28,8 +29,17 @@ export async function performPush(cwd: string, flags: PushFlags) {
 	/* Create dist if it doesn't exist. Ensures srcDir exists to ensure its being ran within a project */
 	if (existsSync(srcDir) && !existsSync(distDir)) await mkdir(distDir, { recursive: true });
 
+	/* Obtain all ts files (To transpile) */
 	const tsFiles: Record<string, string> = {};
-	const entryFileContents = []; // The 'export * from file' of every file to be transpiled - Paramount for the bundler to bundle it.
+	const srcFileGlob = new Glob("**/*.ts");
+	for await (const file of srcFileGlob.scan({ cwd: srcDir })) {
+		const path = join(srcDir, file);
+		tsFiles[path] = await Bun.file(join(srcDir, file)).text();
+	}
+
+	/* Bundle project */
+	const tsConfigPath = join(cwd, "tsconfig.json");
+	const tsconfigExists = await Bun.file(tsConfigPath).exists();
 }
 
 export async function push(options: PushFlags = {}) {
