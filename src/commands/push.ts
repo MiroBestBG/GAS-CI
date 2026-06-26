@@ -19,10 +19,11 @@ export async function push(options: { watch?: boolean } = {}) {
 
 	await performPush(cwd);
 
-	if (!options.watch) process.exit(0); // Push complete
+	if (options.watch) await watchDirectoryForChanges(cwd);
+
+	process.exit(0); // Push complete
 
 	/* Watch for changes in the 'src' directory */
-	await watchDirectoryForChanges(cwd);
 }
 /**
  * @param rootDir - The root project directory. The 'src' subdirectory within it will be watched.
