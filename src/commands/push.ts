@@ -1,8 +1,8 @@
 import { outputAndExit } from "@/utils/utils";
-import { exists } from "node:fs/promises";
 import { mkdir } from "node:fs/promises";
-import { watch } from "node:fs";
+import { existsSync, watch } from "node:fs";
 import { join } from "node:path";
+import type { ConfigFile, ConfigSchema } from "@template/config";
 interface PushFlags {
 	watch?: boolean;
 	noConfig?: boolean;
@@ -14,12 +14,19 @@ export async function performPush(cwd: string, flags: PushFlags) {
 	const srcDir = join(cwd, "src");
 	const distDir = join(cwd, "dist");
 
-	/* Ensure config file exists. Skipped when using --noConfig */
-	if ((await exists(join(cwd, "config.ts"))) && !flags.noConfig) outputAndExit(`Your project does not have a config.ts file. If you only want to push transpiled code, use '--noConfig'.`);
+	/* Get project config */
+	var config: Partial<ConfigSchema> | undefined = undefined;
 
-	if ((await exists(srcDir)) && !(await exists(distDir)))
-		/* Create dist if it doesn't exist. Ensures srcDir exists to ensure its being ran within a project */
-		await mkdir(distDir, { recursive: true });
+	if (!existsSync(join(cwd, "config.ts")) && !flags.noConfig) return outputAndExit(`Your project does not have a config.ts file. If you only want to push transpiled code, use '--noConfig'.`);
+
+	try {
+		config = await ((await import(join(cwd, "config.ts"))) as ConfigFile).config();
+	} catch (err) {
+		outputAndExit(`Your configuration file is malformed.`);
+	}
+
+	/* Create dist if it doesn't exist. Ensures srcDir exists to ensure its being ran within a project */
+	if (existsSync(srcDir) && !existsSync(distDir)) await mkdir(distDir, { recursive: true });
 
 	const tsFiles: Record<string, string> = {};
 	const entryFileContents = []; // The 'export * from file' of every file to be transpiled - Paramount for the bundler to bundle it.
@@ -29,7 +36,7 @@ export async function push(options: PushFlags = {}) {
 	const cwd = process.cwd();
 	const srcDir = join(cwd, "src");
 
-	if (!(await exists(srcDir))) outputAndExit(`The source directory does not exist. Ensure that you're running this process from the root of the project.`);
+	if (!existsSync(srcDir)) outputAndExit(`The source directory does not exist. Ensure that you're running this process from the root of the project.`);
 
 	await performPush(cwd, options);
 
@@ -51,7 +58,7 @@ async function watchDirectoryForChanges(rootDir: string, flags: PushFlags) {
 	let timeout: ReturnType<typeof setTimeout> | null = null;
 	const srcDir = join(rootDir, "src");
 
-	if (!(await exists(srcDir))) outputAndExit(`The root directory provided (${rootDir}) does not have a 'src' directory within.`);
+	if (!existsSync(srcDir)) outputAndExit(`The root directory provided (${rootDir}) does not have a 'src' directory within.`);
 
 	watch(srcDir, { recursive: true }, (_, filename) => {
 		if (timeout) clearTimeout(timeout);
