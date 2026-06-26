@@ -34,18 +34,38 @@ export async function performPush(cwd: string, flags: PushFlags) {
 	const tsFiles: Record<string, string> = {};
 	const srcFileGlob = new Glob("**/*.ts");
 	const entryPointContents: string[] = [];
+	var preservedFunctions = [];
 	for await (const file of srcFileGlob.scan({ cwd: srcDir })) {
 		const path = join(srcDir, file);
 		const content = await Bun.file(join(srcDir, file)).text();
-		tsFiles[path] = content;
 
-		const fileMetadata = parseSourceFile(content);
-		console.info(fileMetadata);
+		const { preservedDeclarations, unexportedDeclarations } = parseSourceFile(content);
+		const exportStatement = `export { ${unexportedDeclarations.join(",")} }`; // Export all unexported variables
+
+		tsFiles[path] = [content, exportStatement].join("\n");
+		entryPointContents.push(`export * from "./${file}";`);
+		preservedFunctions.push(preservedDeclarations);
 	}
 
-	/* Bundle project */
+	/* Use tsconfig for bundling (if present) */
 	const tsConfigPath = join(cwd, "tsconfig.json");
 	const tsconfigExists = await Bun.file(tsConfigPath).exists();
+
+	const res = await Bun.build({
+		entrypoints: [join(srcDir, "_entrypoint.ts")],
+		files: {
+			[`${srcDir}/_entrypoint.ts`]: entryPointContents.join("\n"),
+			...tsFiles,
+		},
+		target: "browser",
+		format: "esm",
+		minify: false,
+		...(tsconfigExists ? { tsconfig: tsConfigPath } : {}),
+	});
+
+	if (!res.success) outputAndExit(`Something went wrong when bundling the project.\n${res.logs.toString()}`);
+
+	console.info(await res.outputs[0]?.text());
 }
 
 export async function push(options: PushFlags = {}) {
