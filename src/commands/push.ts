@@ -6,7 +6,7 @@ import type { ConfigFile, ConfigSchema } from "@template/config";
 import { Glob } from "bun";
 import { parseSourceFile } from "@/utils/parser";
 import { obfuscate } from "javascript-obfuscator";
-import { spawnProcess } from "@/utils/validatation";
+import { spawnProcess } from "@/utils/validation";
 interface PushFlags {
 	watch?: boolean;
 	noConfig?: boolean;

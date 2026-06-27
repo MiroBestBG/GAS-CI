@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { mkdir, rm } from "node:fs/promises";
 import z from "zod";
 import { ProjectNameSchema, ScriptIdSchema } from "@/utils/types";
-import { spawnProcess, validate } from "@/utils/validatation";
+import { spawnProcess, validate } from "@/utils/validation";
 import { cp } from "node:fs/promises";
 import { TEMPLATE_DIR } from "@/core/constants";
 import { existsSync } from "node:fs";

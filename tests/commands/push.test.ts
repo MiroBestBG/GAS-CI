@@ -21,7 +21,7 @@ mock.module("node:fs", () => ({
 }));
 
 const spawnProcessMock = mock(() => Promise.resolve(undefined));
-mock.module("@/utils/validatation", () => ({
+mock.module("@/utils/validation", () => ({
 	spawnProcess: spawnProcessMock,
 }));
 

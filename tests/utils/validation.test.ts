@@ -1,5 +1,5 @@
 import { describe, expect, spyOn, it } from "bun:test";
-import { spawnProcess, validate } from "@/utils/validatation";
+import { spawnProcess, validate } from "@/utils/validation";
 import { z } from "zod";
 
 const testSchema = z.string().min(3).max(20);

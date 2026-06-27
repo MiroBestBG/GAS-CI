@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { spawnProcess } from "@/utils/validatation";
+import { spawnProcess } from "@/utils/validation";
 import { join } from "node:path";
 import { TEMPLATE_DIR } from "@/core/constants";
 
