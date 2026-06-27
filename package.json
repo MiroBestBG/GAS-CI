@@ -1,5 +1,5 @@
 {
-	"name": "gas-ci",
+	"name": "@mirobestbg/gas-ci",
 	"description": "GAS CI is a CLI tool for building and deploying Google Apps Script (GAS) projects with modern JavaScript/TypeScript tooling. It acts as a wrapper around `clasp`, adding support for bundling, obfuscation, and automatic preservation of GAS entry-point functions.",
 	"module": "index.ts",
 	"type": "module",

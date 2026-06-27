@@ -12,7 +12,16 @@ interface PushFlags {
 	noConfig?: boolean;
 }
 /**
- * @todo - Functionality
+ * Performs a push of the current project.
+ *
+ * This builds the TypeScript project from the `src` directory, optionally
+ * applies obfuscation based on the project config, writes the result to
+ * `dist/main.js`, and then executes `clasp push` from the dist directory.
+ *
+ * @param cwd - The working directory of the project.
+ * @param flags - Optional flags for the push operation.
+ * @param flags.watch - If true, the caller will also enable watch mode.
+ * @param flags.noConfig - If true, skip requiring a `config.ts` file. Results in bundling using the tsconfig of the project.
  */
 export async function performPush(cwd: string, flags: PushFlags) {
 	const srcDir = join(cwd, "src");
