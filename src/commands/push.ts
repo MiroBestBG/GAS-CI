@@ -100,10 +100,14 @@ export async function performPush(cwd: string, flags: PushFlags) {
 	/* Write bundled source code to dist */
 	await Bun.write(join(distDir, "main.js"), sourceCode);
 
+	/* Attach appscript.json file to dist project */
 	if (existsSync(join(cwd, "appsscript.json"))) {
 		const appScriptFile = Bun.file(join(cwd, "appsscript.json"));
 		await Bun.write(join(distDir, "appsscript.json"), await appScriptFile.text());
 	}
+
+	// Prevent dual appscript.json configurations (1 Source of truth)
+	if (existsSync(join(srcDir, "appsscript.json"))) outputAndExit(`[WARNING] - Your appsscript.json must be in the root directory of your project, not your 'src' folder.`);
 
 	/* Push using clasp */
 
