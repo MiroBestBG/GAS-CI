@@ -8,7 +8,7 @@ console.clear();
 
 const cli = cac("gas");
 
-cli.command("init [projectName] [scriptId]", "Initialize a new GAS project").option("-f, --force", "Remove the project directory if it already exists").action(init);
+cli.command("init [projectName] [scriptId]", "Initialize a new GAS project").option("-f, --force", "Remove the project directory if it already exists").option("-m, --mono", "Create a monorepo workspace instead of a single project").action(init);
 cli.command("push", "Push local changes to Google Apps Script").option("-w, --watch", "Watch for changes and push automatically").action(push);
 
 cli.help();

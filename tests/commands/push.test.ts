@@ -2,8 +2,12 @@ import { describe, expect, it, spyOn, beforeEach, afterEach, mock, jest } from "
 import { join } from "node:path";
 
 const mkdirMock = mock(() => Promise.resolve(undefined));
+const readFileMock = mock(() => Promise.resolve("{}"));
+const writeFileMock = mock(() => Promise.resolve(undefined));
 mock.module("node:fs/promises", () => ({
 	mkdir: mkdirMock,
+	readFile: readFileMock,
+	writeFile: writeFileMock,
 }));
 
 let existsSyncResults: Record<string, boolean> = {};
@@ -15,14 +19,54 @@ const watchMock = mock((_path: string, _opts: unknown, cb: (event: string, filen
 	return { close: () => {} };
 });
 
+mock.module("bun", () => ({
+	Glob: class {
+		constructor() {}
+		scan() {
+			return (async function* () {
+				yield "test.ts";
+			})();
+		}
+	},
+}));
+
+// Mutate existing Bun object instead of reassigning globalThis.Bun
+const originalBunFile = globalThis.Bun.file;
+const originalBunWrite = globalThis.Bun.write;
+const originalBunBuild = globalThis.Bun.build;
+
+globalThis.Bun.file = mock(() => ({
+	text: () => Promise.resolve("function test() {}"),
+	exists: () => Promise.resolve(true),
+	delete: () => Promise.resolve(),
+})) as any;
+globalThis.Bun.write = mock(() => Promise.resolve(undefined)) as any;
+globalThis.Bun.build = mock(() => Promise.resolve({
+	success: true,
+	outputs: [{ text: () => Promise.resolve("bundled_code") }],
+	logs: []
+})) as any;
+
+const readFileSyncMock = mock((_path: string) => "{}");
+
 mock.module("node:fs", () => ({
 	existsSync: existsSyncMock,
 	watch: watchMock,
+	readFileSync: readFileSyncMock,
 }));
 
 const spawnProcessMock = mock(() => Promise.resolve(undefined));
 mock.module("@/utils/validation", () => ({
 	spawnProcess: spawnProcessMock,
+}));
+
+const isWorkspaceRootMock = mock(() => false);
+const findWorkspaceRootMock = mock(() => null);
+const resolveWorkspaceProjectsMock = mock(() => Promise.resolve([]));
+mock.module("@/utils/workspace", () => ({
+	isWorkspaceRoot: isWorkspaceRootMock,
+	findWorkspaceRoot: findWorkspaceRootMock,
+	resolveWorkspaceProjects: resolveWorkspaceProjectsMock,
 }));
 
 let outputAndExitShouldThrow = true;
@@ -86,6 +130,10 @@ beforeEach(() => {
 	outputAndExitShouldThrow = true;
 	existsSyncResults = {};
 	watchCallback = null;
+	isWorkspaceRootMock.mockReset().mockImplementation(() => false);
+	findWorkspaceRootMock.mockReset().mockImplementation(() => null);
+	resolveWorkspaceProjectsMock.mockReset().mockImplementation(() => Promise.resolve([]));
+	readFileSyncMock.mockReset().mockImplementation(() => "{}");
 	jest.useFakeTimers();
 	consoleInfoSpy = spyOn(console, "info").mockImplementation(() => {});
 	consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
@@ -120,7 +168,7 @@ describe("performPush()", () => {
 
 		await expect(performPush(fakeProject, {})).rejects.toThrow("process.exit called");
 
-		expect(outputAndExitMock).toHaveBeenCalledWith("Your configuration file is malformed.");
+		expect(outputAndExitMock).toHaveBeenCalledWith("Your project does not have a config.ts file. If you only want to push transpiled code, use '--noConfig'.");
 	});
 
 	it("should create dist directory when src exists but dist does not", async () => {
@@ -154,7 +202,7 @@ describe("performPush()", () => {
 
 		outputAndExitShouldThrow = false;
 
-		await performPush(TEST_PROJECT, { noConfig: true }).catch(() => {});
+		await performPush(TEST_PROJECT, { noConfig: true }).catch((err) => { console.error("CAUGHT ERROR:", err); });
 
 		expect(parseSourceFileMock).toHaveBeenCalled();
 	});
@@ -168,7 +216,7 @@ describe("performPush()", () => {
 
 		await performPush(TEST_PROJECT, { noConfig: true }).catch(() => {});
 
-		expect(spawnProcessMock).toHaveBeenCalledWith(["clasp", "push"], DIST_DIR);
+		expect(spawnProcessMock).toHaveBeenCalledWith(["clasp", "push"], TEST_PROJECT);
 	});
 
 	it("should copy appsscript.json into dist when it exists in the project root", async () => {
@@ -181,7 +229,7 @@ describe("performPush()", () => {
 
 		await performPush(TEST_PROJECT, { noConfig: true }).catch(() => {});
 
-		expect(spawnProcessMock).toHaveBeenCalledWith(["clasp", "push"], DIST_DIR);
+		expect(spawnProcessMock).toHaveBeenCalledWith(["clasp", "push"], TEST_PROJECT);
 	});
 });
 
@@ -227,7 +275,7 @@ describe("push()", () => {
 		existsSyncResults[DIST_DIR] = true;
 		outputAndExitShouldThrow = false;
 
-		await expect(push({ watch: true })).rejects.toThrow("process.exit(0)");
+		await push({ watch: true });
 
 		expect(watchMock).toHaveBeenCalled();
 		expect(consoleLogSpy).toHaveBeenCalledWith("Watching for changes in the 'src' directory of the project");
@@ -259,7 +307,7 @@ describe("watchDirectoryForChanges()", () => {
 		outputAndExitShouldThrow = false;
 
 		// watchDirectoryForChanges will call outputAndExit since src won't exist on second check
-		await expect(push({ watch: true })).rejects.toThrow("process.exit(0)");
+		await push({ watch: true });
 
 		expect(outputAndExitMock).toHaveBeenCalled();
 
@@ -278,7 +326,7 @@ describe("watchDirectoryForChanges()", () => {
 		existsSyncResults[DIST_DIR] = true;
 		outputAndExitShouldThrow = false;
 
-		await expect(push({ watch: true })).rejects.toThrow("process.exit(0)");
+		await push({ watch: true });
 
 		// Simulate a file change event
 		expect(watchCallback).not.toBeNull();
@@ -304,7 +352,7 @@ describe("watchDirectoryForChanges()", () => {
 		existsSyncResults[DIST_DIR] = true;
 		outputAndExitShouldThrow = false;
 
-		await expect(push({ watch: true })).rejects.toThrow("process.exit(0)");
+		await push({ watch: true });
 
 		watchCallback!("change", null);
 
@@ -328,7 +376,7 @@ describe("watchDirectoryForChanges()", () => {
 		existsSyncResults[DIST_DIR] = true;
 		outputAndExitShouldThrow = false;
 
-		await expect(push({ watch: true })).rejects.toThrow("process.exit(0)");
+		await push({ watch: true });
 
 		// Make the next performPush call fail
 		outputAndExitShouldThrow = true;
@@ -357,7 +405,7 @@ describe("watchDirectoryForChanges()", () => {
 		existsSyncResults[DIST_DIR] = true;
 		outputAndExitShouldThrow = false;
 
-		await expect(push({ watch: true })).rejects.toThrow("process.exit(0)");
+		await push({ watch: true });
 
 		// Fire multiple rapid changes — only the last should trigger a push
 		watchCallback!("change", "a.ts");

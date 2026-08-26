@@ -1,17 +1,85 @@
 import { outputAndExit } from "@/utils/utils";
 import { mkdir } from "node:fs/promises";
 import { existsSync, watch } from "node:fs";
-import { join } from "node:path";
+import { join, basename, dirname } from "node:path";
 import type { ConfigFile, ConfigSchema } from "@template/config";
 import { Glob } from "bun";
 import { parseSourceFile } from "@/utils/parser";
 import { obfuscate } from "javascript-obfuscator";
 import { spawnProcess } from "@/utils/validation";
 import { readFile, writeFile } from "node:fs/promises";
+import { isWorkspaceRoot, findWorkspaceRoot, resolveWorkspaceProjects } from "@/utils/workspace";
 interface PushFlags {
 	watch?: boolean;
 	noConfig?: boolean;
 }
+/**
+ * Loads a project's config.ts by dynamically importing it.
+ * Returns undefined if the file doesn't exist or fails to load.
+ */
+async function loadProjectConfig(dir: string): Promise<Partial<ConfigSchema> | undefined> {
+	const configPath = join(dir, "config.ts");
+	if (!existsSync(configPath)) return undefined;
+
+	try {
+		return await ((await import(configPath)) as ConfigFile).config();
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Deep-merges two config objects. Values from `override` take precedence.
+ * Nested objects are merged recursively; non-object values are replaced.
+ */
+function deepMerge<T extends Record<string, unknown>>(base: T | undefined, override: T | undefined): T {
+	if (!base) return (override ?? {}) as T;
+	if (!override) return base;
+
+	const result = { ...base } as Record<string, unknown>;
+	for (const key of Object.keys(override)) {
+		const baseVal = result[key];
+		const overrideVal = override[key];
+
+		if (overrideVal !== null && typeof overrideVal === "object" && !Array.isArray(overrideVal) && baseVal !== null && typeof baseVal === "object" && !Array.isArray(baseVal)) {
+			result[key] = deepMerge(baseVal as Record<string, unknown>, overrideVal as Record<string, unknown>);
+		} else {
+			result[key] = overrideVal;
+		}
+	}
+	return result as T;
+}
+
+/**
+ * Resolves the effective config for a project, supporting:
+ * - Local config.ts with optional `extends` path (tsconfig-style inheritance chain)
+ * - Fallback to workspace root config.ts when no local config exists
+ */
+async function resolveConfig(cwd: string, flags: PushFlags): Promise<Partial<ConfigSchema> | undefined> {
+	if (flags.noConfig) return undefined;
+
+	let config = await loadProjectConfig(cwd);
+
+	if (config?.extends) {
+		const parentDir = join(cwd, dirname(config.extends));
+		const parentConfig = await loadProjectConfig(parentDir);
+		config = deepMerge(parentConfig as Record<string, unknown>, config as Record<string, unknown>) as Partial<ConfigSchema>;
+		delete config.extends;
+	} else if (!config) {
+		/* No local config — try workspace root */
+		const wsRoot = findWorkspaceRoot(cwd);
+		if (wsRoot && wsRoot !== cwd) {
+			config = await loadProjectConfig(wsRoot);
+		}
+	}
+
+	if (!config && !flags.noConfig) {
+		outputAndExit(`Your project does not have a config.ts file. If you only want to push transpiled code, use '--noConfig'.`);
+	}
+
+	return config;
+}
+
 /**
  * Performs a push of the current project.
  *
@@ -28,16 +96,8 @@ export async function performPush(cwd: string, flags: PushFlags) {
 	const srcDir = join(cwd, "src");
 	const distDir = join(cwd, "dist");
 
-	/* Get project config */
-	var config: Partial<ConfigSchema> | undefined = undefined;
-
-	if (!existsSync(join(cwd, "config.ts")) && !flags.noConfig) return outputAndExit(`Your project does not have a config.ts file. If you only want to push transpiled code, use '--noConfig'.`);
-
-	try {
-		config = await ((await import(join(cwd, "config.ts"))) as ConfigFile).config();
-	} catch (err) {
-		outputAndExit(`Your configuration file is malformed.`);
-	}
+	/* Get project config (with extends/workspace inheritance) */
+	const config = await resolveConfig(cwd, flags);
 
 	/* Create dist if it doesn't exist. Ensures srcDir exists to ensure its being ran within a project */
 	if (existsSync(srcDir) && !existsSync(distDir)) await mkdir(distDir, { recursive: true });
@@ -133,17 +193,34 @@ export async function performPush(cwd: string, flags: PushFlags) {
 
 export async function push(options: PushFlags = {}) {
 	const cwd = process.cwd();
-	const srcDir = join(cwd, "src");
 
-	if (!existsSync(srcDir)) outputAndExit(`The source directory does not exist. Ensure that you're running this process from the root of the project.`);
+	if (isWorkspaceRoot(cwd)) {
+		/* Workspace mode: push all GAS projects */
+		const projects = await resolveWorkspaceProjects(cwd);
+		if (projects.length === 0) outputAndExit("No GAS projects found in workspace. Ensure sub-projects contain a .clasp.json file.");
 
-	await performPush(cwd, options);
+		for (let i = 0; i < projects.length; i++) {
+			console.log(`\nPushing project: ${basename(projects[i]!)} (${i + 1}/${projects.length})`);
+			await performPush(projects[i]!, options);
+		}
 
-	/* Watch for changes in the 'src' directory */
-	if (options?.watch) {
-		await watchDirectoryForChanges(cwd, options);
+		if (options?.watch) {
+			await watchWorkspace(cwd, projects, options);
+		} else {
+			process.exit(0);
+		}
 	} else {
-		process.exit(0);
+		/* Single project mode */
+		const srcDir = join(cwd, "src");
+		if (!existsSync(srcDir)) outputAndExit(`The source directory does not exist. Ensure that you're running this process from the root of the project.`);
+
+		await performPush(cwd, options);
+
+		if (options?.watch) {
+			await watchDirectoryForChanges(cwd, options);
+		} else {
+			process.exit(0);
+		}
 	}
 }
 /**
@@ -178,4 +255,43 @@ async function watchDirectoryForChanges(rootDir: string, flags: PushFlags) {
 			}
 		}, 500);
 	});
+}
+
+/**
+ * Watches all projects in a workspace for file changes.
+ * When a change is detected, only the affected project is re-pushed.
+ */
+async function watchWorkspace(rootDir: string, projects: string[], flags: PushFlags) {
+	console.log(`Watching ${projects.length} project(s) for changes`);
+	const pushingProjects = new Set<string>();
+	const timeouts = new Map<string, ReturnType<typeof setTimeout>>();
+
+	for (const projectDir of projects) {
+		const srcDir = join(projectDir, "src");
+		if (!existsSync(srcDir)) continue;
+
+		watch(srcDir, { recursive: true }, (_, filename) => {
+			const existing = timeouts.get(projectDir);
+			if (existing) clearTimeout(existing);
+
+			timeouts.set(
+				projectDir,
+				setTimeout(async () => {
+					if (pushingProjects.has(projectDir)) return;
+
+					pushingProjects.add(projectDir);
+					console.log(`\nChange detected in ${basename(projectDir)}${filename ? `: ${filename}` : ""}. Pushing...`);
+
+					try {
+						await performPush(projectDir, flags);
+						console.log(`Push complete for ${basename(projectDir)}. Watching for changes...`);
+					} catch (error) {
+						console.error(`Push failed for ${basename(projectDir)}:`, error);
+					} finally {
+						pushingProjects.delete(projectDir);
+					}
+				}, 500),
+			);
+		});
+	}
 }

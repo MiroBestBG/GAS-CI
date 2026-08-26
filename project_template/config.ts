@@ -1,5 +1,6 @@
 import { ObfuscatorOptions } from "javascript-obfuscator";
 export type ConfigSchema = {
+	extends?: string;
 	obfuscate: {
 		enabled: boolean;
 		options: ObfuscatorOptions;

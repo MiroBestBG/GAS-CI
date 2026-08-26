@@ -6,6 +6,9 @@ const rmMock = mock(() => Promise.resolve(undefined));
 const cpMock = mock(() => Promise.resolve(undefined));
 const renameMock = mock(() => Promise.resolve(undefined));
 const copyFileMock = mock(() => Promise.resolve(undefined));
+const writeFileMock = mock(() => Promise.resolve(undefined));
+
+const readFileMock = mock(() => Promise.resolve("{}"));
 
 mock.module("node:fs/promises", () => ({
 	mkdir: mkdirMock,
@@ -13,13 +16,23 @@ mock.module("node:fs/promises", () => ({
 	cp: cpMock,
 	rename: renameMock,
 	copyFile: copyFileMock,
+	writeFile: writeFileMock,
+	readFile: readFileMock,
 }));
 
 let existsSyncResults: Record<string, boolean> = {};
 const existsSyncMock = mock((path: string) => existsSyncResults[path] ?? false);
 
+const readFileSyncMock = mock((_path: string) => "{}");
+
 mock.module("node:fs", () => ({
 	existsSync: existsSyncMock,
+	readFileSync: readFileSyncMock,
+}));
+
+const findWorkspaceRootMock = mock(() => null);
+mock.module("@/utils/workspace", () => ({
+	findWorkspaceRoot: findWorkspaceRootMock,
 }));
 
 const spawnProcessMock = mock(() => Promise.resolve(undefined));
@@ -65,6 +78,7 @@ beforeEach(() => {
 	existsSyncMock.mockReset().mockImplementation((path: string) => existsSyncResults[path] ?? false);
 	spawnProcessMock.mockReset().mockImplementation(() => Promise.resolve(undefined));
 	validateMock.mockReset().mockImplementation((_schema: unknown, input: unknown) => input);
+	writeFileMock.mockReset().mockImplementation(() => Promise.resolve(undefined));
 	outputAndExitMock.mockReset().mockImplementation((_msg: string, _err?: unknown) => {
 		if (outputAndExitShouldThrow) {
 			throw new Error("process.exit called");
@@ -74,6 +88,8 @@ beforeEach(() => {
 
 	outputAndExitShouldThrow = true;
 	existsSyncResults = {};
+	findWorkspaceRootMock.mockReset().mockImplementation(() => null);
+	readFileSyncMock.mockReset().mockImplementation(() => "{}");
 	consoleLogSpy = spyOn(console, "log").mockImplementation(() => {});
 });
 
@@ -86,7 +102,7 @@ describe("init()", () => {
 		await init(PROJECT, undefined, {});
 		expect(validateMock).toHaveBeenCalledTimes(2);
 
-		expect(mkdirMock).toHaveBeenCalledWith(PROJECT_DIR);
+		expect(mkdirMock).toHaveBeenCalledWith(PROJECT_DIR, { recursive: true });
 		expect(cpMock).toHaveBeenCalledWith("/fake/template", PROJECT_DIR, { recursive: true });
 
 		expect(spawnProcessMock).toHaveBeenCalledWith(["clasp", "clone"], join(PROJECT_DIR, "dist"));
@@ -112,7 +128,7 @@ describe("init()", () => {
 		await init(PROJECT, undefined, { force: true });
 
 		expect(rmMock).toHaveBeenCalledWith(PROJECT_DIR, { recursive: true, force: true });
-		expect(mkdirMock).toHaveBeenCalledWith(PROJECT_DIR);
+		expect(mkdirMock).toHaveBeenCalledWith(PROJECT_DIR, { recursive: true });
 	});
 
 	it("should call outputAndExit when directory exists and --force is not set", async () => {
