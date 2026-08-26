@@ -1,5 +1,5 @@
 import { join, basename } from "node:path";
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, rm, readFile } from "node:fs/promises";
 import z from "zod";
 import { ProjectNameSchema, ScriptIdSchema } from "@/utils/types";
 import { spawnProcess, validate } from "@/utils/validation";
@@ -32,7 +32,7 @@ export async function init(projectNameInput?: string, scriptIdInput?: string, op
 				await outputAndExit(`Workspace directory "${NEW_PROJECT_DIR_PATH}" already exists. Use --force to remove it.`);
 			}
 		}
-		
+
 		if (!isCurrentDir) {
 			await mkdir(NEW_PROJECT_DIR_PATH).catch((err) => {
 				outputAndExit(`Failed to create workspace directory at ${NEW_PROJECT_DIR_PATH}`, err);
@@ -76,6 +76,12 @@ export async function init(projectNameInput?: string, scriptIdInput?: string, op
 	/* Copy over files from the template to the new project directory */
 	await cp(TEMPLATE_DIR, NEW_PROJECT_DIR_PATH, { recursive: true }).catch((err) => outputAndExit(`Something went wrong while copying template files into the project directory.`, err));
 
+	/* Update package.json name to the project name so each project has a unique name in a monorepo */
+	const pkgJsonPath = join(NEW_PROJECT_DIR_PATH, "package.json");
+	const pkgJson = await Bun.file(pkgJsonPath).json();
+	pkgJson.name = projectName;
+	await writeFile(pkgJsonPath, JSON.stringify(pkgJson, null, "\t"));
+
 	/* Spawn clasp process */
 	const cmd = scriptId ? ["clasp", "clone", scriptId] : ["clasp", "clone"];
 	await spawnProcess(cmd, join(NEW_PROJECT_DIR_PATH, "dist")).catch((err) => outputAndExit(`Failed to clone Google Apps Script project. Ensure clasp is installed and you are authenticated.`, err));
@@ -91,7 +97,7 @@ export async function init(projectNameInput?: string, scriptIdInput?: string, op
 	/* Set rootDir to "dist" so clasp only scans the dist folder (prevents duplicate appsscript.json conflicts) */
 	const claspJsonPath = join(NEW_PROJECT_DIR_PATH, ".clasp.json");
 	if (existsSync(claspJsonPath)) {
-		const claspConfig = JSON.parse(await import("node:fs/promises").then(m => m.readFile(claspJsonPath, "utf-8")));
+		const claspConfig = JSON.parse(await import("node:fs/promises").then((m) => m.readFile(claspJsonPath, "utf-8")));
 		claspConfig.rootDir = "dist";
 		await writeFile(claspJsonPath, JSON.stringify(claspConfig, null, 2));
 	}
