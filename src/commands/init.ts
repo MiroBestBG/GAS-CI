@@ -45,6 +45,15 @@ export async function init(projectNameInput?: string, scriptIdInput?: string, op
 		await rename(join(NEW_PROJECT_DIR_PATH, "dist", ".clasp.json"), join(NEW_PROJECT_DIR_PATH, ".clasp.json")).catch((err) => outputAndExit(`Failed to move .clasp.json file.`, err));
 	}
 
+	/* Set rootDir to "dist" so clasp only scans the dist folder (prevents duplicate appsscript.json conflicts) */
+	const claspJsonPath = join(NEW_PROJECT_DIR_PATH, ".clasp.json");
+	if (existsSync(claspJsonPath)) {
+		const { readFile, writeFile } = await import("node:fs/promises");
+		const claspConfig = JSON.parse(await readFile(claspJsonPath, "utf-8"));
+		claspConfig.rootDir = "dist";
+		await writeFile(claspJsonPath, JSON.stringify(claspConfig, null, 2));
+	}
+
 	/* Copy the appscript.json to NEW_PROJECT_DIR_PATH. Should the user remove their dist folder, the "gas push" command will detect said change and move the one from the folder over to the  */
 	if (existsSync(join(NEW_PROJECT_DIR_PATH, "dist", "appsscript.json"))) {
 		await copyFile(join(NEW_PROJECT_DIR_PATH, "dist", "appsscript.json"), join(NEW_PROJECT_DIR_PATH, "appsscript.json")).catch((err) => outputAndExit(`Failed to copy appsscript.json file.`, err));

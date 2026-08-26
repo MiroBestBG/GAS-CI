@@ -7,6 +7,7 @@ import { Glob } from "bun";
 import { parseSourceFile } from "@/utils/parser";
 import { obfuscate } from "javascript-obfuscator";
 import { spawnProcess } from "@/utils/validation";
+import { readFile, writeFile } from "node:fs/promises";
 interface PushFlags {
 	watch?: boolean;
 	noConfig?: boolean;
@@ -51,10 +52,17 @@ export async function performPush(cwd: string, flags: PushFlags) {
 		const content = await Bun.file(join(srcDir, file)).text();
 
 		const { preservedDeclarations, unexportedDeclarations } = parseSourceFile(content);
-		const exportStatement = `export { ${unexportedDeclarations.join(",")} }`; // Export all unexported variables
 
-		tsFiles[path] = [content, exportStatement].join("\n");
-		entryPointContents.push(`export * from "./${file}";`);
+		/* Export all unexported declarations so cross-file imports still resolve. Tree-shaking is driven by the entrypoint, not by per-file exports. */
+		const exportStatement = unexportedDeclarations.length > 0 ? `export { ${unexportedDeclarations.join(",")} }` : "";
+
+		tsFiles[path] = [content, exportStatement].filter(Boolean).join("\n");
+
+		/* Re-export only preserved names from the entrypoint so unreachable code gets eliminated */
+		if (preservedDeclarations.length > 0) {
+			entryPointContents.push(`export { ${preservedDeclarations.join(", ")} } from "./${file}";`);
+		}
+
 		for (const preservedDeclaration of preservedDeclarations) {
 			preservedFunctions.push(preservedDeclaration);
 		}
@@ -109,10 +117,18 @@ export async function performPush(cwd: string, flags: PushFlags) {
 	// Prevent dual appscript.json configurations (1 Source of truth)
 	if (existsSync(join(srcDir, "appsscript.json"))) outputAndExit(`[WARNING] - Your appsscript.json must be in the root directory of your project, not your 'src' folder.`);
 
-	/* Push using clasp */
+	/* Ensure .clasp.json rootDir points to dist so clasp only sees dist files */
+	const claspJsonPath = join(cwd, ".clasp.json");
+	if (existsSync(claspJsonPath)) {
+		const claspConfig = JSON.parse(await readFile(claspJsonPath, "utf-8"));
+		if (claspConfig.rootDir !== "dist") {
+			claspConfig.rootDir = "dist";
+			await writeFile(claspJsonPath, JSON.stringify(claspConfig, null, 2));
+		}
+	}
 
-	console.info(distDir);
-	await spawnProcess(["clasp", "push"], distDir);
+	/* Push using clasp */
+	await spawnProcess(["clasp", "push"], cwd);
 }
 
 export async function push(options: PushFlags = {}) {
